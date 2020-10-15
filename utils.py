@@ -42,11 +42,9 @@ def cartesian_to_equatorial(x, y, z):
     x_sign = np.sign(x)
     y_sign = np.sign(y)
 
-    if x_sign == -1.:
-        right_ascension = np.pi + right_ascension
+    right_ascension = np.where(x_sign == -1., np.pi + right_ascension, right_ascension)
 
-    if x_sign == 1. and y_sign == -1.:
-        right_ascension = 2 * np.pi + right_ascension
+    right_ascension = np.where(np.logical_and(x_sign == 1., y_sign == -1.), 2 * np.pi + right_ascension, right_ascension)
 
     unit_vector = np.asarray([right_ascension, declination])
 
