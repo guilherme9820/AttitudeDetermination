@@ -4,22 +4,29 @@ import tensorflow as tf
 import numpy as np
 from typing import Union
 from typing import Tuple
-from learning_core.rotation_utils import rotation_matrix_from_quaternion
 
 
 class TFWahbaSolutions:
+    """
+        This class implements some algorithms used to solve the Wahba's problem [Wahba1965].
+        The algorithms implemented are the following:
+            - QUEST, ESOQ2, SVD, Q-Method and Neural Network.
+
+        The Neural Network implementation just performs a forward pass through a model passed by
+        the user as argument. Such algorithms are implemented using the Tensorflow 2 framework.
+
+        References:
+            - [Wahba1965] Wahba, Grace. "A least squares estimate of satellite attitude."
+                          SIAM review 7.3 (1965): 409-409.
+    """
 
     def __init__(self, algorithm='quest'):
+
         self.algorithm = algorithm
 
-    def __call__(self, body_vectors: np.ndarray, ref_vectors: np.ndarray, stddevs, num_iterations=0):
+    def __call__(self, body_vectors: np.ndarray, ref_vectors: np.ndarray, **kwargs):
 
-        kwargs = {'body_vectors': body_vectors,
-                  'ref_vectors': ref_vectors,
-                  'num_iterations': num_iterations,
-                  'stddevs': stddevs}
-
-        return self.algorithm(**kwargs)
+        return self.algorithm(body_vectors, ref_vectors, **kwargs)
 
     @property
     def algorithm(self):
@@ -29,7 +36,15 @@ class TFWahbaSolutions:
     def algorithm(self, algorithm):
         self.__algorithm = getattr(self, algorithm)
 
-    def rotation_matrix_from_quaternion(self, quaternion):
+    def rotation_matrix_from_quaternion(self, quaternion: tf.Tensor) -> tf.Tensor:
+        """ Builds a Direction Cosine Matrix (DCM) given a quaternion.
+
+        Args:
+            quat: An array of size (4,) representing the quaternion.
+
+        Returns:
+            An array of shape (3, 3) containing the Direction Cosine Matrix.
+        """
 
         # Unit quaternion rotation matrices computatation
         xx = quaternion[0]*quaternion[0]
@@ -48,11 +63,8 @@ class TFWahbaSolutions:
 
         return matrix
 
-    def loss(self, B, A):
-        return 1. - tf.linalg.trace(tf.matmul(A, B, transpose_b=True))
-
     def undo_rotation(self, quat: tf.Tensor, axis: int = 0) -> tf.Tensor:
-        """ Undo rotations done by sequential rotations (QUEST) and initial
+        """ Undo rotations done by sequential rotations (QUEST) and initial \
             rotations (ESOQ2) by permuting and changing signs of the quaternion.
 
             Obs.: The permutations done by this method were given by multiplying
@@ -83,7 +95,7 @@ class TFWahbaSolutions:
         else:
             return quat
 
-    def quest_core(self, B: tf.Tensor, num_iterations: int) -> Tuple[tf.Tensor, tf.Tensor]:
+    def _quest_core(self, B: tf.Tensor, num_iterations: int) -> Tuple[tf.Tensor, tf.Tensor]:
         """ QUEST core computation.
 
         Args:
@@ -141,12 +153,7 @@ class TFWahbaSolutions:
 
             lam -= (phi / phi_prime)
 
-        # Equations 29-31 from [Markley2000]
-        # rho = lam + sigma
-        # temp = rho * tf.eye(3) - S
-        # adj_temp = tf.linalg.inv(temp) * tf.linalg.det(temp)  # adjugate
-        # X = tf.matmul(adj_temp, z[:, tf.newaxis])
-        # gamma = tf.convert_to_tensor([[tf.linalg.det(temp)]])
+        # Equations 66 and 68 from [Shuster1981]
         alpha = lam**2 - sigma**2 + kappa
         beta = lam - sigma
         gamma = alpha*(lam + sigma) - tf.linalg.det(S)
@@ -156,82 +163,9 @@ class TFWahbaSolutions:
         # If implemented following the papers the code does not
         # work very well, in order to work we must use the
         # quaternion inverse
-        # quaternions = tf.squeeze(tf.concat([-X, gamma], axis=0))
         quaternions = tf.convert_to_tensor([-X[0], -X[1], -X[2], gamma])
 
         return quaternions, tf.abs(gamma)
-
-    # def quest_core(self, B: tf.Tensor, num_iterations: int) -> Tuple[tf.Tensor, tf.Tensor]:
-    #     """ QUEST core computation.
-
-    #     Args:
-    #         B: Profile matrix.
-    #         num_iterations: Number of Newton-Raphson iterations.
-
-    #     Returns:
-    #         An unnormalized quaternion and its scalar absolute value.
-
-    #     References:
-    #         - [Shuster1981] Shuster, M.D. and Oh, S.D. "Three-Axis Attitude Determination
-    #             from Vector Observations," Journal of Guidance and Control, Vol.4, No.1,
-    #             Jan.-Feb. 1981, pp. 70-77.
-    #         - [Markley2000] Markley, F. Landis, and Daniele Mortari. "New developments
-    #             in quaternion estimation from vector observations." (2000).
-    #     """
-
-    #     S = B + tf.transpose(B)
-
-    #     z = tf.convert_to_tensor([B[1, 2] - B[2, 1], B[2, 0] - B[0, 2], B[0, 1] - B[1, 0]])
-
-    #     Sz = tf.convert_to_tensor([z[0]*S[0, 0] + z[1]*S[0, 1] + z[2]*S[0, 2],
-    #                                z[0]*S[1, 0] + z[1]*S[1, 1] + z[2]*S[1, 2],
-    #                                z[0]*S[2, 0] + z[1]*S[2, 1] + z[2]*S[2, 2]])
-
-    #     SSz = tf.convert_to_tensor([Sz[0]*S[0, 0] + Sz[1]*S[0, 1] + Sz[2]*S[0, 2],
-    #                                 Sz[0]*S[1, 0] + Sz[1]*S[1, 1] + Sz[2]*S[1, 2],
-    #                                 Sz[0]*S[2, 0] + Sz[1]*S[2, 1] + Sz[2]*S[2, 2]])
-
-    #     # Parameters of characeristic equation (eq. 63) from [Shuster1981]
-    #     sigma = B[0, 0] + B[1, 1] + B[2, 2]  # equations 44 and 63 are equivalent
-    #     delta = tf.linalg.det(S)
-
-    #     kappa = S[0, 0]*S[1, 1]+S[1, 1]*S[2, 2]+S[2, 2]*S[0, 0] \
-    #         - S[0, 1]*S[1, 0]-S[1, 2]*S[2, 1]-S[2, 0]*S[0, 2]
-
-    #     # (eq. 71) from [Shuster1981]
-    #     a = sigma**2 - kappa
-    #     b = sigma**2 + z[0]**2 + z[1]**2 + z[2]**2
-    #     c = delta + Sz[0]*z[0] + Sz[1]*z[1] + Sz[2]*z[2]
-    #     d = z[0]*SSz[0] + z[1]*SSz[1] + z[2]*SSz[2]
-
-    #     # Newton-Raphson method (eq. 70) from [Shuster1981]
-    #     k = a * b + c * sigma - d
-    #     lam = 1.
-    #     for i in range(num_iterations):
-    #         phi = lam**4 - (a + b) * lam**2 - c * lam + k
-    #         phi_prime = 4 * lam**3 - 2 * (a + b) * lam - c
-
-    #         lam -= (phi / phi_prime)
-
-    #     # Equations 29-31 from [Markley2000]
-    #     # rho = lam + sigma
-    #     # temp = rho * tf.eye(3) - S
-    #     # adj_temp = tf.linalg.inv(temp) * tf.linalg.det(temp)  # adjugate
-    #     # X = tf.matmul(adj_temp, z[:, tf.newaxis])
-    #     # gamma = tf.convert_to_tensor([[tf.linalg.det(temp)]])
-    #     alpha = lam**2 - sigma**2 + kappa
-    #     beta = lam - sigma
-    #     gamma = alpha*(lam + sigma) - delta
-    #     X = alpha*z + beta*Sz + SSz
-
-    #     # Optimal Quaternion (eq. 69) from [Shuster1981].
-    #     # If implemented following the papers the code does not
-    #     # work very well, in order to work we must use the
-    #     # quaternion inverse
-    #     # quaternions = tf.squeeze(tf.concat([-X, gamma], axis=0))
-    #     quaternions = tf.convert_to_tensor([-X[0], -X[1], -X[2], gamma])
-
-    #     return quaternions, tf.abs(gamma)
 
     @ tf.function
     def quest(self,
@@ -243,10 +177,8 @@ class TFWahbaSolutions:
         """ QUaternion ESTimator (QUEST).
 
             Args:
-                body_vectors: (batch_size, N, 3) or (N, 3) array with measurement vectors, where
-                            N is the number of measurements.
-                ref_vectors: (batch_size, N, 3) or (N, 3) array with reference vectors, where
-                            N is the number of measurements.
+                body_vectors: (N, 3) array of measurement vectors, where N is the number of measurements.
+                ref_vectors: (N, 3) array of reference vectors, where N is the number of measurements.
                 stddevs: A list of size N containing the measurement standard deviations for each
                          measurement vector.
                 num_iterations: Number of iterations done by Newton-Raphson method.
@@ -258,10 +190,11 @@ class TFWahbaSolutions:
                 Array of size (4,) containing the estimated quaternion.
 
             References:
-                - [Shuster1981] Shuster, M.D. and Oh, S.D. "Three-Axis Attitude Determination
-                    from Vector Observations," Journal of Guidance and Control, Vol.4, No.1,
-                    Jan.-Feb. 1981, pp. 70-77.
-                - [Markley1999] Markley, F. Landis, and Daniele Mortari. "How to estimate attitude from vector observations." (1999).
+                - [Shuster1981] Shuster, M.D. and Oh, S.D. "Three-Axis Attitude Determination from Vector
+                                Observations," Journal of Guidance and Control, Vol.4, No.1, Jan.-Feb.
+                                1981, pp. 70-77.
+                - [Markley1999] Markley, F. Landis, and Daniele Mortari. "How to estimate attitude from
+                                vector observations." (1999).
 
         """
 
@@ -282,7 +215,7 @@ class TFWahbaSolutions:
         B = tf.matmul(body_vectors, ref_vectors * weights)
 
         # First quaternion estimative
-        quaternions, qual = self.quest_core(B, num_iterations)
+        quaternions, qual = self._quest_core(B, num_iterations)
         axis = 3
 
         # Sequential rotations, where the quaternion scalar value must
@@ -290,17 +223,17 @@ class TFWahbaSolutions:
         # is enough to avoid loss of significance
         if qual < 0.1:
             _B = B * tf.constant([1., -1., -1.])
-            quaternions, qual = self.quest_core(_B, num_iterations)
+            quaternions, qual = self._quest_core(_B, num_iterations)
             axis = 0
 
         if qual < 0.1:
             _B = B * tf.constant([-1., 1., -1.])
-            quaternions, qual = self.quest_core(_B, num_iterations)
+            quaternions, qual = self._quest_core(_B, num_iterations)
             axis = 1
 
         if qual < 0.1:
             _B = B * tf.constant([-1., -1., 1.])
-            quaternions, qual = self.quest_core(_B, num_iterations)
+            quaternions, qual = self._quest_core(_B, num_iterations)
             axis = 2
 
         quaternions = self.undo_rotation(quaternions, axis=axis)
@@ -322,8 +255,8 @@ class TFWahbaSolutions:
             Second EStimator of the Optimal Quaternion (ESOQ2).
 
         Args:
-            body_vectors (np.ndarray): N-by-3 array with measurement vectors.
-            ref_vectors (np.ndarray): N-by-3 array with reference vectors.
+            body_vectors (np.ndarray): (N, 3) array of measurement vectors, where N is the number of measurements.
+            ref_vectors (np.ndarray): (N, 3) array of reference vectors, where N is the number of measurements.
             stddevs: A list of size N containing the measurement standard deviations for each
                         measurement vector.
             num_iterations: Number of iterations done by Newton-Raphson method.
@@ -332,16 +265,16 @@ class TFWahbaSolutions:
             ValueError: Raises an error if the arguments have different shapes.
 
         Returns:
-            Array of size (4,) containing the estimated quaternions.
+            Array of size (3, 3) containing the optimal attitude matrices.
 
         References:
-            - [Shuster1981] Shuster, M.D. and Oh, S.D. "Three-Axis Attitude Determination
-                from Vector Observations," Journal of Guidance and Control, Vol.4, No.1,
-                Jan.-Feb. 1981, pp. 70-77.
-            - [Markley2000] Markley, F. Landis, and Daniele Mortari. "New developments
-                in quaternion estimation from vector observations." (2000).
-            - [Mortari2000] Mortari, Daniele. "Second estimator of the optimal quaternion."
-                Journal of Guidance, Control, and Dynamics 23.5 (2000): 885-888.
+            - [Shuster1981] Shuster, M.D. and Oh, S.D. "Three-Axis Attitude Determination from Vector
+                            Observations," Journal of Guidance and Control, Vol.4, No.1, Jan.-Feb.
+                            1981, pp. 70-77.
+            - [Markley2000] Markley, F. Landis, and Daniele Mortari. "New developments in quaternion
+                            estimation from vector observations." (2000).
+            - [Mortari2000] Mortari, Daniele. "Second estimator of the optimal quaternion." Journal
+                            of Guidance, Control, and Dynamics 23.5 (2000): 885-888.
         """
 
         ref_vectors = tf.cast(ref_vectors, tf.float32)
@@ -375,39 +308,6 @@ class TFWahbaSolutions:
         else:
             B = _B
 
-        # S = B + tf.transpose(B)
-
-        # z = tf.convert_to_tensor([B[1, 2] - B[2, 1], B[2, 0] - B[0, 2], B[0, 1] - B[1, 0]])
-
-        # Sz = tf.convert_to_tensor([z[0]*S[0, 0] + z[1]*S[0, 1] + z[2]*S[0, 2],
-        #                            z[0]*S[1, 0] + z[1]*S[1, 1] + z[2]*S[1, 2],
-        #                            z[0]*S[2, 0] + z[1]*S[2, 1] + z[2]*S[2, 2]])
-
-        # SSz = tf.convert_to_tensor([Sz[0]*S[0, 0] + Sz[1]*S[0, 1] + Sz[2]*S[0, 2],
-        #                             Sz[0]*S[1, 0] + Sz[1]*S[1, 1] + Sz[2]*S[1, 2],
-        #                             Sz[0]*S[2, 0] + Sz[1]*S[2, 1] + Sz[2]*S[2, 2]])
-
-        # # Parameters of characeristic equation (eq. 63) from [Shuster1981]
-        # sigma = B[0, 0] + B[1, 1] + B[2, 2]  # equations 44 and 63 are equivalent
-        # delta = tf.linalg.det(S)
-        # kappa = S[0, 0]*S[1, 1]+S[1, 1]*S[2, 2]+S[2, 2]*S[0, 0] \
-        #     - S[0, 1]*S[1, 0]-S[1, 2]*S[2, 1]-S[2, 0]*S[0, 2]
-
-        # # (eq. 71) from [Shuster1981]
-        # a = sigma**2 - kappa
-        # b = sigma**2 + z[0]**2 + z[1]**2 + z[2]**2
-        # c = delta + Sz[0]*z[0] + Sz[1]*z[1] + Sz[2]*z[2]
-        # d = z[0]*SSz[0] + z[1]*SSz[1] + z[2]*SSz[2]
-
-        # # Newton-Raphson method (eq. 70) from [Shuster1981]
-        # k = a * b + c * sigma - d
-        # lam = 1.
-        # for _ in range(num_iterations):
-        #     phi = lam**4 - (a + b) * lam**2 - c * lam + k
-        #     phi_prime = 4 * lam**3 - 2 * (a + b) * lam - c
-
-        #     lam -= (phi / phi_prime)
-
         S = B + tf.transpose(B)
 
         z = tf.convert_to_tensor([B[1, 2] - B[2, 1], B[2, 0] - B[0, 2], B[0, 1] - B[1, 0]])
@@ -435,7 +335,7 @@ class TFWahbaSolutions:
 
         # Newton-Raphson method (eq. 70) from [Shuster1981]
         lam = 1.
-        for i in range(num_iterations):
+        for _ in range(num_iterations):
             phi = lam**4 + b * lam**2 + c * lam + d
             phi_prime = 4 * lam**3 + 2 * b * lam + c
 
@@ -471,6 +371,9 @@ class TFWahbaSolutions:
 
         y = adj_M[:, index_n]
 
+        # with open("quat_y.txt", "a") as f:
+        #     np.savetxt(f, tf.reshape(y, [1, -1]).numpy())
+
         # Equation 75 from [Markley2000]
         X = (lam - sigma) * y
         gamma = z[0]*y[0] + z[1]*y[1] + z[2]*y[2]
@@ -491,23 +394,24 @@ class TFWahbaSolutions:
             ref_vectors: Union[np.ndarray, tf.Tensor],
             stddevs: list,
             **kwargs) -> tf.Tensor:
-        """ Singular Value Decomposition method by [Markley1988]_.
+        """ Singular Value Decomposition method by [Markley1988].
 
             Args:
-                body_vectors: (N, 3) array with measurement vectors, where N is the number of measurements.
-                ref_vectors: (N, 3) array with reference vectors, where N is the number of measurements.
+                body_vectors: (N, 3) array of measurement vectors, where N is the number of measurements.
+                ref_vectors: (N, 3) array of reference vectors, where N is the number of measurements.
                 stddevs: A list of size N containing the measurement standard deviations for each
                          measurement vector.
 
             Returns:
-                Array of size (batch_size, 3, 3) containing the optimal attitude matrices.
+                Array of size (3, 3) containing the optimal attitude matrices.
 
             References:
-                - [Shuster1981] Shuster, M.D. and Oh, S.D. "Three-Axis Attitude Determination
-                    from Vector Observations," Journal of Guidance and Control, Vol.4, No.1,
-                    Jan.-Feb. 1981, pp. 70-77.
+                - [Shuster1981] Shuster, M.D. and Oh, S.D. "Three-Axis Attitude Determination from Vector
+                                Observations," Journal of Guidance and Control, Vol.4, No.1, Jan.-Feb.
+                                1981, pp. 70-77.
                 - [Markley1988] Markley, F. Landis. "Attitude determination using vector observations and
-                    the singular value decomposition." Journal of the Astronautical Sciences 36.3 (1988): 245-258.
+                                the singular value decomposition." Journal of the Astronautical Sciences
+                                36.3 (1988): 245-258.
         """
 
         ref_vectors = tf.cast(ref_vectors, tf.float32)
@@ -517,7 +421,7 @@ class TFWahbaSolutions:
             raise ValueError("body_vectors and ref_vectors are not the same size")
 
         # Equation 97 from [Shuster1981]
-        sig_tot = 1. / tf.reduce_sum(1/tf.convert_to_tensor(stddevs)**2)
+        sig_tot = 1. / tf.reduce_sum(1. / tf.convert_to_tensor(stddevs)**2)
         # Equation 96 from [Shuster1981]
         weights = sig_tot / tf.reshape(stddevs, [-1, 1])**2
 
@@ -542,25 +446,23 @@ class TFWahbaSolutions:
                  ref_vectors: Union[np.ndarray, tf.Tensor],
                  stddevs: list,
                  **kwargs) -> tf.Tensor:
-        """ Q-Method by [Keat1977]_.
+        """ Q-Method by [Keat1977].
 
             Args:
-                body_vectors: (batch_size, N, 3) or (N, 3) array with measurement vectors, where
-                            N is the number of measurements.
-                ref_vectors: (batch_size, N, 3) or (N, 3) array with reference vectors, where
-                            N is the number of measurements.
+                body_vectors: (N, 3) array of measurement vectors, where N is the number of measurements.
+                ref_vectors: (N, 3) array of reference vectors, where N is the number of measurements.
                 stddevs: A list of size N containing the measurement standard deviations for each
                          measurement vector.
 
             Returns:
-                Array of size (batch_size, 4) containing the estimated quaternions.
+                Array of size (3, 3) containing the optimal attitude matrices.
 
             References:
-                - [Shuster1981] Shuster, M.D. and Oh, S.D. "Three-Axis Attitude Determination
-                    from Vector Observations," Journal of Guidance and Control, Vol.4, No.1,
-                    Jan.-Feb. 1981, pp. 70-77.
-                - [Keat1977] Keat, J. Analysis of least-squares attitude determination routine DOAOP,
-                    Computer Sciences Corporation Report CSC. TM-77/6034, February, 1977.
+                - [Shuster1981] Shuster, M.D. and Oh, S.D. "Three-Axis Attitude Determination from Vector
+                                Observations," Journal of Guidance and Control, Vol.4, No.1, Jan.-Feb.
+                                1981, pp. 70-77.
+                - [Keat1977] Keat, J. Analysis of least-squares attitude determination routine DOAOP, Computer
+                             Sciences Corporation Report CSC. TM-77/6034, February, 1977.
         """
 
         ref_vectors = tf.cast(ref_vectors, tf.float32)
@@ -596,10 +498,46 @@ class TFWahbaSolutions:
 
         quaternions = eigen_vectors[:, index]
 
-        quaternions = tf.linalg.normalize(quaternions)[0]
-
         quaternions = tf.concat([-quaternions[:3], [quaternions[-1]]], axis=0)
+
+        quaternions = tf.linalg.normalize(quaternions)[0]
 
         optimal_matrix = self.rotation_matrix_from_quaternion(quaternions)
 
         return optimal_matrix
+
+    @tf.function
+    def nn(self,
+           body_vectors: Union[np.ndarray, tf.Tensor],
+           ref_vectors: Union[np.ndarray, tf.Tensor],
+           model,
+           **kwargs) -> tf.Tensor:
+        """ Neural Network.
+
+            Args:
+                body_vectors: (N, 3) array of measurement vectors, where N is the number of measurements.
+                ref_vectors: (N, 3) array of reference vectors, where N is the number of measurements.
+                model: A function that implements the model. Such that the model __call__ method performs
+                       the forward pass and accepts an input argument and the keyword 'training' specifying
+                       the training phase.
+
+            Returns:
+                Array of size (3, 3) containing the optimal attitude matrices.
+        """
+
+        ref_vectors = tf.cast(ref_vectors, tf.float32)
+        body_vectors = tf.cast(body_vectors, tf.float32)
+
+        if body_vectors.shape != ref_vectors.shape:
+            raise ValueError("body_vectors and ref_vectors are not the same size")
+
+        obs = body_vectors.shape[0]
+        weights = tf.ones([obs, 1]) / obs
+
+        # Vectorized form of equation 38 from [Shuster1981]
+        profile_matrix = tf.matmul(body_vectors, ref_vectors * weights, transpose_a=True)
+        profile_matrix = tf.reshape(profile_matrix, [-1, 9, 1])
+
+        optimal_rotation = model(profile_matrix, training=False)
+
+        return optimal_rotation[0]
