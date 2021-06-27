@@ -8,10 +8,12 @@ def readme():
 
 keywords = ("attitude determination")
 
+description = "This API implements some algorithm for Star Tracking and Attitude Determination problems."
+
 setup(
     name="attitude_determination",
-    version="1.0.0",
-    description="Attitude Determination Testing",
+    version="3.0.0",
+    description=description,
     long_description=readme(),
     long_description_content_type="text/markdown",
     classifiers=[
@@ -25,7 +27,7 @@ setup(
     author_email="dos_santos_98@hotmail.com",
     keywords=keywords,
     license="MIT",
-    packages=find_packages(exclude=['tests', 'models']),
+    packages=find_packages(),
     install_requires=['numpy>= 1.18',
                       'pandas >= 1.0.3',
                       'scipy >= 1.4.1',
