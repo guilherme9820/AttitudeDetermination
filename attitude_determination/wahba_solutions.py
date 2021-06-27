@@ -1,9 +1,7 @@
-import sys
-from scipy.special import softmax
-import tensorflow as tf
-import numpy as np
 from typing import Union
 from typing import Tuple
+import tensorflow as tf
+import numpy as np
 
 
 class TFWahbaSolutions:
@@ -160,8 +158,8 @@ class TFWahbaSolutions:
         X = alpha*z + beta*Sz + SSz
 
         # Optimal Quaternion (eq. 69) from [Shuster1981].
-        # If implemented following the papers the code does not
-        # work very well, in order to work we must use the
+        # The codes will not work very well if implemented
+        # following the papers directly, thus we must use the
         # quaternion inverse
         quaternions = tf.convert_to_tensor([-X[0], -X[1], -X[2], gamma])
 
@@ -370,9 +368,6 @@ class TFWahbaSolutions:
         index_n = tf.argmax(tf.linalg.norm(adj_M, axis=1))
 
         y = adj_M[:, index_n]
-
-        # with open("quat_y.txt", "a") as f:
-        #     np.savetxt(f, tf.reshape(y, [1, -1]).numpy())
 
         # Equation 75 from [Markley2000]
         X = (lam - sigma) * y

@@ -27,7 +27,7 @@ def equatorial_to_cartesian(right_ascension, declination):
 
 def cartesian_to_equatorial(x_coord, y_coord, z_coord):
     """ Converts from cartesian coordinate system to equatorial coordinate system.
-        This function considers that the vector in coordinate coordinate is a unit vector.
+        This function considers that the vector in cartesian coordinate is a unit vector.
 
         Args:
             x_coord (numpy.ndarray): Array of shape (N,) where N is the number of samples.
@@ -103,9 +103,9 @@ def ref_vectors_from_catalog(catalog, identifiers):
     return equatorial_to_cartesian(right_ascension, declination)
 
 
-def get_k_top_centroids(star_image, k_top=4):
+def get_k_top_centroids(star_image, k_top=4, location_only=True):
 
-    star_pixels = get_star_pixels(star_image, 150)
+    star_pixels = get_star_pixels(star_image, threshold=150)
 
     centroider = Centroider(max_cdpus=60)
 
@@ -119,7 +119,10 @@ def get_k_top_centroids(star_image, k_top=4):
     else:
         top_centroids = centroids[:k_top]
 
-    return [[centroid.pos_y, centroid.pos_x] for centroid in top_centroids]
+    if location_only:
+        return [[centroid.pos_y, centroid.pos_x] for centroid in top_centroids]
+
+    return top_centroids
 
 
 def get_rot_quaternion(vector1, vector2):
@@ -154,8 +157,8 @@ def perform_projection(vectors, projection_matrix, image_resolution, return_indi
 
     projections = projections / np.expand_dims(vectors[:, -1], axis=1)
 
-    # After projecting the stars coordinates from body frame of reference to an image plane
-    # its necessary to validate its boundaries, because some stars may fall out the image
+    # After projecting the stars coordinates from the body frame of reference to an image plane
+    # it's necessary to validate its boundaries, because some stars may fall out the image
     # resolution range.
     condition = np.logical_and.reduce((projections[:, 0] >= 0,  # x >= 0
                                        projections[:, 1] >= 0,  # y >= 0

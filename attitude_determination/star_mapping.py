@@ -77,8 +77,8 @@ class StarMapping:
 
         delta_de = de_coords - ref_star[1]
 
-        # Circle equation is: (x - x0)^2 + (y - y0)^2 <= radius^2. So we must get all coordinates s.t.
-        # their squared sum lies within [buffer_radius**2, pattern_radius**2].
+        # Circle equation is: (x - x0)^2 + (y - y0)^2 <= radius^2. So we must get all coordinates
+        # such that their squared sum lies within [buffer_radius**2, pattern_radius**2].
         circle_radius = delta_ra**2 + delta_de**2
 
         upper_cond = circle_radius <= pattern_radius**2

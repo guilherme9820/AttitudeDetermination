@@ -4,16 +4,14 @@ HipparcosCatalog
 =====
 Hipparcos catalog is available at https://www.cosmos.esa.int/web/hipparcos.
 """
-from urllib.request import urlretrieve
+
+import os
 from typing import Union
 from time import gmtime
 import pandas as pd
 import numpy as np
-import progressbar
-import shutil
-import gzip
-import os
 import wget
+
 
 class HipparcosCatalog:
     """
@@ -32,11 +30,11 @@ class HipparcosCatalog:
     """
 
     def __init__(self,
-                 target_epoch: float = None, # Current date (julian years)
-                ):
+                 target_epoch: float = None,  # Current date (julian years)
+                 ):
 
-        self.ref_epoch = 1991.25  # Catalogue year (julian years) 
-        self.target_epoch = target_epoch if target_epoch is not None else self.curr_time_to_epoch() 
+        self.ref_epoch = 1991.25  # Catalogue year (julian years)
+        self.target_epoch = target_epoch if target_epoch is not None else self.curr_time_to_epoch()
 
     def undo_great_circle(self,
                           proper_motion: Union[np.float32, np.ndarray],
@@ -122,7 +120,7 @@ class HipparcosCatalog:
         # "http://cdsarc.u-strasbg.fr/ftp/I/239/hip_main.dat.gz"
         maybe_download("hipparcos_v2.dat", "https://cdsarc.unistra.fr/viz-bin/nph-Cat/txt.gz?I/311/hip2.dat.gz")
         # "https://cdsarc.unistra.fr/ftp/I/311/hip2.dat.gz"
-        
+
     def reduce_catalogue(self, save_reduced_catalog: bool = False) -> pd.DataFrame:
         """Reduces the catalog downloaded in 'retrieve_hipparcos' method.
 
