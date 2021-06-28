@@ -2,6 +2,7 @@ from scipy.spatial.transform import Rotation
 import numpy as np
 from .cest import get_star_pixels
 from .cest import Centroider
+from typing import Union
 
 
 def equatorial_to_cartesian(right_ascension, declination):
@@ -54,7 +55,9 @@ def cartesian_to_equatorial(x_coord, y_coord, z_coord):
     return unit_vector.T
 
 
-def body_vectors_from_centroids(centroids, optical_center, focal_distance):
+def body_vectors_from_centroids(centroids: Union[list, np.ndarray],
+                                optical_center: Union[list, np.ndarray],
+                                focal_distance: float) -> np.ndarray:
     """ Transforms the star centroids to unit vectors referenced by the
         star sensor coordinate frame.
 
@@ -62,33 +65,27 @@ def body_vectors_from_centroids(centroids, optical_center, focal_distance):
         "Accuracy performance of star trackers - a tutorial ( https://ieeexplore.ieee.org/document/1008988 )"
 
         Args:
-            centroids (Union[list, numpy.ndarray]): An array containing the star centroids (pixel coordinate).
-            optical_center (Union[list, numpy.ndarray]): Intersection of the focal plane and the optical axis (pixel coordinate).
-            focal_distance (float): Star sensor focal distance.
+            centroids: An array containing the star centroids (pixel coordinate).
+            optical_center: Intersection of the focal plane and the optical axis (pixel coordinate).
+            focal_distance: Star sensor focal distance.
 
         Returns:
-            numpy.ndarray: Unit vectors in the star sensor coordinate frame
-                           corresponding to each centroid given as argument.
+            Unit vectors in the star sensor coordinate frame corresponding to each centroid.
     """
 
     centroids = np.array(centroids)
     optical_center = np.array(optical_center)
 
-    if centroids.ndim < 3:
-        centroids = centroids[np.newaxis, :, :]
-
     diffs = centroids - optical_center
 
-    atan = np.arctan(np.sqrt(diffs[..., :-1]**2 + diffs[..., -1:]**2) / focal_distance)
-    atan2 = np.arctan2(diffs[..., -1:], diffs[..., :-1])
+    atan = np.arctan(np.sqrt(diffs[:, 0]**2 + diffs[:, 1]**2) / focal_distance)
+    atan2 = np.arctan2(diffs[:, 0], diffs[:, 1])
 
     body_vectors = np.asarray([np.cos(atan2) * np.cos(0.5 * np.pi - atan),
                                np.sin(atan2) * np.cos(0.5 * np.pi - atan),
                                np.sin(0.5 * np.pi - atan)])
 
-    body_vectors = np.transpose(body_vectors, [1, 2, 0, 3])
-
-    return body_vectors.squeeze().astype('float32')
+    return body_vectors.T.astype('float32')
 
 
 def ref_vectors_from_catalog(catalog, identifiers):
@@ -141,7 +138,7 @@ def get_rot_quaternion(vector1, vector2):
     return np.array([orthonormal_vector[0], orthonormal_vector[1], orthonormal_vector[2], angle])
 
 
-def perform_rotation(unit_vectors, rotation_tensor, representation='quaternion'):
+def rotate_vectors(unit_vectors, rotation_tensor, representation='quaternion'):
 
     if representation == 'quaternion':
         rotation = Rotation.from_quat(rotation_tensor)
@@ -151,7 +148,7 @@ def perform_rotation(unit_vectors, rotation_tensor, representation='quaternion')
     return rotation.apply(unit_vectors)
 
 
-def perform_projection(vectors, projection_matrix, image_resolution, return_indices=True):
+def project_onto_image_plane(vectors, projection_matrix, image_resolution, return_indices=True):
 
     projections = (projection_matrix @ vectors.T).T
 

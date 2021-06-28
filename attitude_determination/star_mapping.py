@@ -6,8 +6,8 @@ import numpy as np
 import cv2
 from .utils import get_k_top_centroids
 from .utils import get_rot_quaternion
-from .utils import perform_rotation
-from .utils import perform_projection
+from .utils import rotate_vectors
+from .utils import project_onto_image_plane
 from .utils import equatorial_to_cartesian
 
 
@@ -201,9 +201,9 @@ class StarMapping:
 
         quaternion = get_rot_quaternion(ref_unit_vectors, (0, 0, 1))
 
-        rotated_stars = perform_rotation(stars_unit_vectors, quaternion)
+        rotated_stars = rotate_vectors(stars_unit_vectors, quaternion)
 
-        valid_projections, valid_indices = perform_projection(rotated_stars, self.projection_matrix, self.resolution)
+        valid_projections, valid_indices = project_onto_image_plane(rotated_stars, self.projection_matrix, self.resolution)
 
         positions = pd.DataFrame(data=valid_projections, columns=['row', 'column'])
 
