@@ -234,20 +234,6 @@ class Centroider:
 
         return centroids
 
-    def fill_cdpus(self, centroids):
-        """ Populates the CDPUs given a list of centroids. The centroids must
-            be a list of lists where each element has 4 components: pixels, 
-            value, pos_x, pos_y.
-
-        Args:
-            centroids: List of lists containing the centroids to be added.
-        """
-        self.reset()
-
-        for centroid in centroids:
-            pixels, value, pos_x, pos_y = centroid[0], centroid[1], centroid[2], centroid[3]
-            self.add_cdpu(pos_x, pos_y, value, pixels)
-
     def sort_centroids(self, centroids):
         """ Sorts the centroids in descending order. The sorting policy takes
             into consideration the centroid pixel intensity and the number of
@@ -322,3 +308,21 @@ class Centroider:
         dataframe = pd.DataFrame(data=centroids, columns=columns)
 
         dataframe.to_csv(filename, index=False)
+
+    def load_centroids(self, csv_file):
+        """ Loads a CSV file containing the centroids.
+
+        Args:
+            centroids: List of lists containing the centroids to be added.
+        """
+        centroids = pd.read_csv(csv_file)
+
+        self.reset()
+
+        for centroid in centroids.iterrows():
+            pixels = centroid[1]['pixels']
+            value = centroid[1]['value']
+            pos_x = centroid[1]['x']
+            pos_y = centroid[1]['y']
+
+            self.add_cdpu(pos_x, pos_y, value, pixels)
