@@ -116,8 +116,8 @@ class HipparcosCatalog:
                 print(f"Extracting '{file}.gz'...")
                 os.system(f"gunzip ./{file}.gz")
 
-        maybe_download("hipparcos_v1.dat", "http://cdsarc.u-strasbg.fr/viz-bin/nph-Cat/txt.gz?I/239/hip_main.dat.gz")
-        # "http://cdsarc.u-strasbg.fr/ftp/I/239/hip_main.dat.gz"
+        maybe_download("hipparcos_v1.dat", "http://cdsarc.u-strasbg.fr/viz-bin/nph-Cat/txt.gz?I/239/hip_main.dat")
+        # "http://cdsarc.u-strasbg.fr/ftp/I/239/hip_main.dat"
         maybe_download("hipparcos_v2.dat", "https://cdsarc.unistra.fr/viz-bin/nph-Cat/txt.gz?I/311/hip2.dat.gz")
         # "https://cdsarc.unistra.fr/ftp/I/311/hip2.dat.gz"
 

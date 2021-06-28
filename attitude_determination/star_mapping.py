@@ -87,42 +87,7 @@ class StarMapping:
 
         valid_indices = np.where(np.logical_and(upper_cond, lower_cond))
 
-        return catalog.iloc[valid_indices]
-
-    # def stars_within_radius(self, star_array, radius, ref_coord):
-
-    #     magnitudes = star_array[:, 0]
-    #     ra_coords = star_array[:, 1]
-    #     de_coords = star_array[:, 2]
-
-    #     # Elegible stars must be within range [ra - radius / cos(de), ra + radius / cos(de)],
-    #     # where ra stands for right ascension
-    #     ra_limits = [ref_coord[0] - (radius / np.cos(ref_coord[1])),
-    #                  ref_coord[0] + (radius / np.cos(ref_coord[1]))]
-
-    #     # Elegible stars must be within range [de - radius, de + radius],
-    #     # where de stands for declination
-    #     de_limits = [ref_coord[1] - radius, ref_coord[1] + radius]
-
-    #     ra_indices_mask = np.logical_and(ra_limits[0] < ra_coords, ra_coords < ra_limits[1])
-    #     de_indices_mask = np.logical_and(de_limits[0] < de_coords, de_coords < de_limits[1])
-
-    #     indices = np.logical_and(ra_indices_mask, de_indices_mask)
-
-    #     # eligible_ra = catalog['right_ascension'].between(ra_limits[0], ra_limits[1], inclusive=False)
-
-    #     # eligible_de = catalog['declination'].between(de_limits[0], de_limits[1], inclusive=False)
-
-    #     # Indices for those catalog entries that are within both right ascension and declination limits
-    #     # indices = np.logical_and(eligible_ra, eligible_de)
-
-    #     # mags = magnitudes[indices]
-    #     # ra = ra_coords[indices]
-    #     # de = de_coords[indices]
-
-    #     # return (catalog.loc[indices]).reset_index(drop=True)
-    #     # return np.vstack((eligible_mags, eligible_ra, eligible_de)).T
-    #     return magnitudes[indices], ra_coords[indices], de_coords[indices]
+        return catalog.iloc[valid_indices].reset_index(drop=True)
 
     def filter_visible_stars(self, catalog):
 
@@ -204,7 +169,6 @@ class StarMapping:
                     image[x_coord, y_coord] += pixel_value
 
         # Clips pixel values to range [0, 255]
-        # image = np.maximum(np.minimum(image, 255), 0).astype(np.uint8)
         image = np.clip(image, 0, 255).astype(np.uint8)
 
         if save_image:
@@ -214,27 +178,61 @@ class StarMapping:
 
         return image
 
-    def generate_image(self, catalog, position, min_number_stars, filename, **kwargs):
+    def project_stars(self, stars, ref_star, radius):
+        """ This function projects the stars around the reference star onto an image plane.
+            It only projects the stars within a given radius.
 
-        star_array = catalog[['magnitude', 'right_ascension', 'declination']].values
+        Args:
+            stars: A dataframe containing the stars informations. Two columns are mandatory:
+                   'right_ascension' and 'declination'.
+            ref_star: The coordinates of the main star [right ascension, declination].
+            radius: The radius around the reference star.
+
+        Returns:
+            A dataframe containing row and column positions for each star in the input dataframe.
+        """
+
+        valid_stars = self.stars_within_radius(stars, ref_star, radius)
+
+        ref_unit_vectors = equatorial_to_cartesian(*ref_star)
+
+        stars_unit_vectors = equatorial_to_cartesian(valid_stars['right_ascension'].values,
+                                                     valid_stars['declination'].values)
+
+        quaternion = get_rot_quaternion(ref_unit_vectors, (0, 0, 1))
+
+        rotated_stars = perform_rotation(stars_unit_vectors, quaternion)
+
+        valid_projections, valid_indices = perform_projection(rotated_stars, self.projection_matrix, self.resolution)
+
+        positions = pd.DataFrame(data=valid_projections, columns=['row', 'column'])
+
+        valid_stars = valid_stars.iloc[valid_indices].reset_index(drop=True)
+
+        return pd.concat([valid_stars, positions], axis=1, sort=False)
+
+    def generate_image(self,
+                       catalog,
+                       reference,
+                       min_number_stars,
+                       filename=None,
+                       save_image=False,
+                       **kwargs):
 
         radius = np.radians(self.fov * 0.5)
 
-        valid_stars = self.stars_within_radius(star_array, radius, position)
-
-        unit_ref_coords = equatorial_to_cartesian(*position)
-
-        quaternion = get_rot_quaternion(unit_ref_coords, (0, 0, 1))
-
-        stars_coords = equatorial_to_cartesian(valid_stars[:, 1], valid_stars[:, 2])
-
-        rotated_stars = perform_rotation(stars_coords, quaternion)
-
-        projections, indices = perform_projection(rotated_stars, self.projection_matrix, self.resolution)
+        projections = self.project_stars(catalog, reference, radius)
 
         if len(projections) >= min_number_stars:
+            star_centroids = projections[['row', 'column']].values
+            magnitudes = projections['magnitude'].values
+            return self.build_image(star_centroids,
+                                    magnitudes,
+                                    filename=filename,
+                                    save_image=save_image,
+                                    **kwargs)
 
-            self.build_image(projections, valid_stars[indices, 0], filename=filename, **kwargs)
+        return None
 
     def __str__(self):
 
