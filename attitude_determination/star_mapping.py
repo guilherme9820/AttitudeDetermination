@@ -179,7 +179,7 @@ class StarMapping:
         return image
 
     def project_stars(self, stars, ref_star, radius):
-        """ This function projects the stars around the reference star onto an image plane.
+        """ This function projects the stars around a reference star onto an image plane.
             It only projects the stars within a given radius.
 
         Args:

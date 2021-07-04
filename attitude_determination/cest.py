@@ -310,7 +310,11 @@ class Centroider:
         dataframe.to_csv(filename, index=False)
 
     def load_centroids(self, csv_file):
-        """ Loads a CSV file containing the centroids.
+        """ Loads a CSV file containing the centroids. The dataframe must have
+            four mandatory attributes: 'pixels', 'value', 'x', 'y'. Where the
+            first one is the number of pixels used to evaluate that centroid,
+            the second one is the pixel intensity of the centroid, and the last
+            ones are the coordinates of the centroid.
 
         Args:
             centroids: List of lists containing the centroids to be added.

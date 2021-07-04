@@ -1,22 +1,23 @@
+from typing import Union
 from scipy.spatial.transform import Rotation
 import numpy as np
+import pandas as pd
 from .cest import get_star_pixels
 from .cest import Centroider
-from typing import Union
 
 
-def equatorial_to_cartesian(right_ascension, declination):
+def equatorial_to_cartesian(right_ascension: np.ndarray, declination: np.ndarray) -> np.ndarray:
     """ Converts from equatorial coordinate system to cartesian coordinate system.
         This function considers that the vector in equatorial coordinate is a unit vector.
 
         Args:
-            right_ascension (numpy.ndarray): Array of shape (N,) where N is the number of samples and each sample has
+            right_ascension: Array of shape (N,) where N is the number of samples and each sample has
                              the azimuth angles to be converted.
-            declination  (numpy.ndarray): Array of shape (N,) where N is the number of samples and each sample has
+            declination: Array of shape (N,) where N is the number of samples and each sample has
                          the elevation angles to be converted.
 
         Returns:
-            numpy.ndarray: An array of shape (N, 3), where each sample has three components: x, y and z.
+            An array of shape (N, 3), where each sample has three components: x, y and z.
     """
 
     unit_vector = np.asarray([np.cos(right_ascension) * np.cos(declination),
@@ -26,17 +27,17 @@ def equatorial_to_cartesian(right_ascension, declination):
     return unit_vector.T
 
 
-def cartesian_to_equatorial(x_coord, y_coord, z_coord):
+def cartesian_to_equatorial(x_coord: np.ndarray, y_coord: np.ndarray, z_coord: np.ndarray) -> np.ndarray:
     """ Converts from cartesian coordinate system to equatorial coordinate system.
         This function considers that the vector in cartesian coordinate is a unit vector.
 
         Args:
-            x_coord (numpy.ndarray): Array of shape (N,) where N is the number of samples.
-            y_coord (numpy.ndarray): Array of shape (N,) where N is the number of samples.
-            z_coord (numpy.ndarray): Array of shape (N,) where N is the number of samples.
+            x_coord: Array of shape (N,) where N is the number of samples.
+            y_coord: Array of shape (N,) where N is the number of samples.
+            z_coord: Array of shape (N,) where N is the number of samples.
 
         Returns:
-            numpy.ndarray: An array of shape (N, 2), where each sample has two components: right ascension and declination.
+            An array of shape (N, 2), where each sample has two components: right ascension and declination.
     """
 
     right_ascension = np.arctan(y_coord / x_coord)
@@ -88,7 +89,16 @@ def body_vectors_from_centroids(centroids: Union[list, np.ndarray],
     return body_vectors.T.astype('float32')
 
 
-def ref_vectors_from_catalog(catalog, identifiers):
+def ref_vectors_from_catalog(catalog: pd.DataFrame, identifiers: Union[np.ndarray, list]) -> np.ndarray:
+    """ Returns a collection of unit vectors from a star catalog given their IDs.
+
+        Args:
+            catalog: A pandas DataFrame containing the stars.
+            identifiers: The star IDs.
+
+        Returns:
+            Unit vectors in the reference coordinate frame.
+    """
 
     dataframe = catalog.set_index('HIP')
 
@@ -100,7 +110,17 @@ def ref_vectors_from_catalog(catalog, identifiers):
     return equatorial_to_cartesian(right_ascension, declination)
 
 
-def get_k_top_centroids(star_image, k_top=4, location_only=True):
+def get_k_top_centroids(star_image: np.ndarray, k_top: int = 4, location_only: bool = True) -> list:
+    """ Evaluates the centroids in a star image.
+
+        Args:
+            star_image: A numpy 2-D array containing the pixel values.
+            k_top: The number of centroids in descending order of relevance. Defaults to 4.
+            location_only: Returns only the centroids positions if set to true.
+                           Returns a list of Centroid objects otherwise. Defaults to true.
+        Returns:
+            A list containing the most relevant centroids.
+    """
 
     star_pixels = get_star_pixels(star_image, threshold=150)
 
@@ -139,6 +159,19 @@ def get_rot_quaternion(vector1, vector2):
 
 
 def rotate_vectors(unit_vectors, rotation_tensor, representation='quaternion'):
+    """ Applies a rotation operator over a collection of vectors.
+
+    Args:
+        unit_vectors: An array of shape (N, 3) where each sample in N is a unit vector.
+        rotation_tensor: The rotation operation. It can be either an array of shape (3, 3) or an array
+                         of shape (4).
+        representation (optional): This argument defines which rotation parametrization will be used.
+                                   It can be 'dcm' or 'quaternion', where the former stands for Direction
+                                   Consine Matrix. Defaults to 'quaternion'.
+
+    Returns:
+        An array of shape (N, 3) containing the rotated unit vectors.
+    """
 
     if representation == 'quaternion':
         rotation = Rotation.from_quat(rotation_tensor)
@@ -149,7 +182,19 @@ def rotate_vectors(unit_vectors, rotation_tensor, representation='quaternion'):
 
 
 def project_onto_image_plane(vectors, projection_matrix, image_resolution, return_indices=True):
+    """ Projects a collection of vectors onto an image plane given its projection matrix.
 
+    Args:
+        vectors: An array of shape (N, 3).
+        projection_matrix: An array of shape (3, 3).
+        image_resolution: A 1-D array containing the image witdh and height, in that order.
+        return_indices (optional): If True, it will return the indices of the vectors that were
+                                   projected properly. Defaults to True.
+
+    Returns:
+        An array of shape (N, 2) containing the x and y coordiantes of the image plane. Returns
+        an array containing the valid indices if 'return_indices' was set to True. 
+    """
     projections = (projection_matrix @ vectors.T).T
 
     projections = projections / np.expand_dims(vectors[:, -1], axis=1)
