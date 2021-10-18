@@ -57,69 +57,69 @@ class TestCases:
 
         return ref_vectors, body_vectors, stddev
 
-    def __call__(self, num_samples=1, case='case1'):
+    def __call__(self, num_samples=1, case=1):
 
-        if case == "case1":
+        if case == 1:
             ref_vectors = [[1., 0., 0.],
                            [0., 1., 0.],
                            [0., 0., 1.]]
             stddevs = [1e-6, 1e-6, 1e-6]
 
-        elif case == "case2":
+        elif case == 2:
             ref_vectors = [[1., 0., 0.],
                            [0., 1., 0.]]
             stddevs = [1e-6, 1e-6]
 
-        elif case == "case3":
+        elif case == 3:
             ref_vectors = [[1., 0., 0.],
                            [0., 1., 0.],
                            [0., 0., 1.]]
             stddevs = [0.01, 0.01, 0.01]
 
-        elif case == "case4":
+        elif case == 4:
             ref_vectors = [[1., 0., 0.],
                            [0., 1., 0.]]
             stddevs = [0.01, 0.01]
 
-        elif case == "case5":
+        elif case == 5:
             ref_vectors = [[0.6, 0.8, 0.],
                            [0.8, -0.6, 0.]]
             stddevs = [1e-6, 0.01]
 
-        elif case == "case6":
+        elif case == 6:
             ref_vectors = [[1., 0., 0.],
                            [1., 0.01, 0.],
                            [1., 0., 0.01]]
             stddevs = [1e-6, 1e-6, 1e-6]
 
-        elif case == "case7":
+        elif case == 7:
             ref_vectors = [[1., 0., 0.],
                            [1., 0.01, 0.]]
             stddevs = [1e-6, 1e-6]
 
-        elif case == "case8":
+        elif case == 8:
             ref_vectors = [[1., 0., 0.],
                            [1., 0.01, 0.],
                            [1., 0., 0.01]]
             stddevs = [0.01, 0.01, 0.01]
 
-        elif case == "case9":
+        elif case == 9:
             ref_vectors = [[1., 0., 0.],
                            [1., 0.01, 0.]]
             stddevs = [0.01, 0.01]
 
-        elif case == "case10":
+        elif case == 10:
             ref_vectors = [[1., 0., 0.],
                            [.96, 0.28, 0.],
                            [.96, 0., 0.28]]
             stddevs = [1e-6, 0.01, 0.01]
 
-        elif case == "case11":
+        elif case == 11:
             ref_vectors = [[1., 0., 0.],
                            [.96, 0.28, 0.]]
             stddevs = [1e-6, 0.01]
 
-        elif case == "case12":
+        elif case == 12:
             ref_vectors = [[1., 0., 0.],
                            [.96, 0.28, 0.]]
             stddevs = [0.01, 1e-6]
