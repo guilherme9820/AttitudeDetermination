@@ -98,17 +98,17 @@ class StarMapping:
 
         return visible_stars.reset_index(drop=True)
 
-    def region_around_centroid(self, centroid, limit_value):
+    def region_around_centroid(self, point):
 
-        # Defines the lower and upper bounds in the x-axis around the target star
-        x_limits = np.arange(np.ceil(centroid[0] - limit_value), np.floor(centroid[0] + limit_value + 1))
-        x_limits = x_limits[(x_limits >= 0) & (x_limits < self.resolution[0])].astype(np.int)
+        lower_limit = np.ceil(point - self.roi).astype('int')
+        upper_limit = np.floor(point + self.roi + 1).astype('int')
 
-        # Defines the lower and upper bounds in the y-axis around the target star
-        y_limits = np.arange(np.ceil(centroid[1] - limit_value), np.floor(centroid[1] + limit_value + 1))
-        y_limits = y_limits[(y_limits >= 0) & (y_limits < self.resolution[1])].astype(np.int)
+        if lower_limit < 0:
+            lower_limit = 0
+        if upper_limit >= self.resolution[0]:
+            upper_limit = self.resolution[0]
 
-        return x_limits, y_limits
+        return lower_limit, upper_limit
 
     def generate_false_stars(self, num_false_stars):
         random_stars = (np.random.rand(num_false_stars, 1) * self.resolution[0],
@@ -154,10 +154,11 @@ class StarMapping:
 
         for centroid, coeff in zip(star_centroids, coefficients):
 
-            x_limits, y_limits = self.region_around_centroid(centroid, self.roi)
+            x_lower_limit, x_upper_limits = self.region_around_centroid(centroid[0])
+            y_lower_limit, y_upper_limits = self.region_around_centroid(centroid[1])
 
-            for x_coord in x_limits:
-                for y_coord in y_limits:
+            for x_coord in range(x_lower_limit, x_upper_limits):
+                for y_coord in range(y_lower_limit, y_upper_limits):
 
                     # Calculates distance between current pixel and the star position with added noise
                     distance_x = x_coord - centroid[0]
