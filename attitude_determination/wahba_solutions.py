@@ -535,4 +535,7 @@ class TFWahbaSolutions:
 
         optimal_rotation = model(profile_matrix, training=False)
 
+        if optimal_rotation.shape[1] == 4:
+            return self.rotation_matrix_from_quaternion(optimal_rotation[0])
+
         return optimal_rotation[0]

@@ -1,6 +1,7 @@
+import os
+from datetime import datetime
 from scipy.spatial.transform import Rotation
 from scipy.special import erf
-from datetime import datetime
 import pandas as pd
 import numpy as np
 import cv2
@@ -172,7 +173,12 @@ class StarMapping:
         image = np.clip(image, 0, 255).astype(np.uint8)
 
         if save_image:
-            saving_dir = filename or f"./{datetime.now():%Y%m%d%H%M%S}.png"
+            saving_dir = filename or f"{datetime.now():%Y%m%d%H%M%S}.png"
+
+            directory, _ = os.path.split(saving_dir)
+
+            if directory:
+                os.makedirs(directory, exist_ok=True)
 
             cv2.imwrite(saving_dir, image)
 
